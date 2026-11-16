@@ -1,0 +1,170 @@
+
+.screen {
+  min-height: 100svh;
+  background: #e9edf2;
+  display: flex;
+  justify-content: center;
+  font-family: Arial, sans-serif;
+}
+
+.phone {
+  width: 100%;
+  max-width: 430px;
+  min-height: 100svh;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  padding: 25px 27px 22px;
+  overflow: hidden;
+  position: relative;
+}
+
+.top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #092b55;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+
+.secure {
+  color: #7c8795;
+  font-size: 9px;
+}
+
+.center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  margin-top: auto;
+  margin-bottom: auto;
+}
+
+.logo {
+  width: 112px;
+  height: 112px;
+  border-radius: 50%;
+  background: #ffdc00;
+  color: #092b55;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 22px;
+  box-shadow: 0 8px 22px #092b5518;
+}
+
+.center h1 {
+  color: #092b55;
+  font-size: 25px;
+  font-weight: 800;
+  letter-spacing: 4px;
+  margin: 0;
+}
+
+.center h2 {
+  color: #092b55;
+  font-size: 29px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  margin: 2px 0;
+}
+
+.line {
+  width: 55px;
+  height: 4px;
+  border-radius: 10px;
+  background: #ffdc00;
+  margin-top: 15px;
+}
+
+.center p {
+  color: #8290a0;
+  font-size: 13px;
+  margin-top: 12px;
+}
+
+.access {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+  margin-bottom: 45px;
+}
+
+.title {
+  color: #092b55;
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 5px;
+}
+
+.button {
+  height: 54px;
+  width: 100%;
+  background: #ffdc00;
+  color: #092b55;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  padding: 0 17px;
+  gap: 13px;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 700;
+  transition: 0.2s;
+}
+
+.button:hover {
+  background: #f1ce00;
+}
+
+.arrow {
+  margin-left: auto;
+  font-size: 25px;
+}
+
+.footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding-bottom: 8px;
+}
+
+.footer span {
+  color: #092b55;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.footer small {
+  color: #9aa3ad;
+  font-size: 10px;
+}
+
+@media (min-width: 431px) {
+  .phone {
+    min-height: 850px;
+    margin: 20px 0;
+    border-radius: 25px;
+    box-shadow: 0 10px 40px #00000012;
+  }
+}
+
+@media (max-height: 700px) {
+  .center {
+    margin-top: 35px;
+    margin-bottom: 35px;
+  }
+
+  .access {
+    margin-bottom: 20px;
+  }
+
+  .logo {
+    width: 85px;
+    height: 85px;
+  }
+}
