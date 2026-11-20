@@ -1,0 +1,2338 @@
+﻿
+
+========== src/lib/supabase.ts ==========
+
+import { createBrowserClient } from "@supabase/ssr";
+
+let supabaseInstance: ReturnType<typeof createBrowserClient> | null = null;
+
+export function createClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error(
+      "Faltan las variables NEXT_PUBLIC_SUPABASE_URL o NEXT_PUBLIC_SUPABASE_ANON_KEY."
+    );
+  }
+
+  if (!supabaseInstance) {
+    supabaseInstance = createBrowserClient(
+      supabaseUrl,
+      supabaseAnonKey
+    );
+  }
+
+  return supabaseInstance;
+}
+
+
+========== src/lib/supabase-admin.ts ==========
+
+import "server-only";
+import { createClient } from "@supabase/supabase-js";
+
+export function createAdminClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!url || !serviceKey) {
+    throw new Error("Falta configurar la conexiÃ³n privada de Supabase.");
+  }
+
+  return createClient(url, serviceKey, {
+    auth: {
+      autoRefreshToken: [OCULTO]
+      persistSession: false,
+    },
+  });
+}
+
+
+========== src/app/admin/login/page.tsx ==========
+
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase";
+import { Landmark, LockKeyhole, Mail } from "lucide-react";
+
+export default function AdminLogin() {
+  const router = useRouter();
+
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function iniciarSesion(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+
+    setError("");
+    setLoading(true);
+
+    try {
+      const supabase = createClient();
+
+      const { data, error: loginError } =
+        await supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password,
+        });
+
+      if (loginError) {
+        setError(loginError.message);
+        return;
+      }
+
+      if (!data.user) {
+        setError("No se pudo verificar el usuario.");
+        return;
+      }
+
+      const { data: admin, error: adminError } = await supabase
+        .from("admin_fondo")
+        .select("usuario_id")
+        .eq("usuario_id", data.user.id)
+        .eq("activo", true)
+        .maybeSingle();
+
+      if (adminError) {
+        setError("Error al verificar permisos: " + adminError.message);
+        await supabase.auth.signOut();
+        return;
+      }
+
+      if (!admin) {
+        await supabase.auth.signOut();
+        setError("Este usuario no tiene permisos de administrador.");
+        return;
+      }
+
+      router.replace("/admin");
+      router.refresh();
+
+    } catch (err) {
+      console.error("Error de inicio de sesiÃ³n:", err);
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : "No se pudo conectar con el servidor."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <main
+      style={{
+        minHeight: "100vh",
+        background: "#F4F6FA",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        padding: 20,
+      }}
+    >
+      <section
+        style={{
+          width: "100%",
+          maxWidth: 410,
+          background: "#FFFFFF",
+          borderRadius: 22,
+          padding: 30,
+          boxShadow: "0 8px 30px rgba(20,40,80,0.08)",
+        }}
+      >
+        <div style={{ textAlign: "center", marginBottom: 30 }}>
+          <div
+            style={{
+              width: 64,
+              height: 64,
+              borderRadius: 20,
+              background: "#FFF5CC",
+              color: "#D9A500",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Landmark size={34} />
+          </div>
+
+          <h1
+            style={{
+              color: "#142B50",
+              fontSize: 23,
+              margin: "16px 0 5px",
+            }}
+          >
+            Banco Divino NiÃ±o
+          </h1>
+
+          <p style={{ color: "#78869B", fontSize: 14 }}>
+            Acceso administrativo
+          </p>
+        </div>
+
+        <form onSubmit={iniciarSesion}>
+          <label
+            style={{
+              color: "#263B5B",
+              fontSize: 13,
+              fontWeight: 600,
+            }}
+          >
+            Correo electrÃ³nico
+          </label>
+
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              border: "1px solid #E1E6EF",
+              borderRadius: 12,
+              padding: "0 13px",
+              margin: "8px 0 20px",
+            }}
+          >
+            <Mail size={18} color="#8794A8" />
+            <input
+              type="email"
+              required
+              autoComplete="username"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Tu correo"
+              style={{
+                border: 0,
+                outline: 0,
+                padding: 14,
+                width: "100%",
+              }}
+            />
+          </div>
+
+          <label
+            style={{
+              color: "#263B5B",
+              fontSize: 13,
+              fontWeight: 600,
+            }}
+          >
+            ContraseÃ±a
+          </label>
+
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              border: "1px solid #E1E6EF",
+              borderRadius: 12,
+              padding: "0 13px",
+              margin: "8px 0 20px",
+            }}
+          >
+            <LockKeyhole size={18} color="#8794A8" />
+            <input
+              type="password"
+              required
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Tu contraseÃ±a"
+              style={{
+                border: 0,
+                outline: 0,
+                padding: 14,
+                width: "100%",
+              }}
+            />
+          </div>
+
+          {error && (
+            <p
+              style={{
+                color: "#D33B3B",
+                fontSize: 12,
+                marginBottom: 15,
+                background: "#FFF1F1",
+                padding: 12,
+                borderRadius: 10,
+                overflowWrap: "anywhere",
+              }}
+            >
+              {error}
+            </p>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            style={{
+              width: "100%",
+              padding: 15,
+              border: 0,
+              borderRadius: 12,
+              background: "#F4C400",
+              color: "#142B50",
+              fontWeight: 700,
+              cursor: loading ? "not-allowed" : "pointer",
+              opacity: loading ? 0.6 : 1,
+            }}
+          >
+            {loading ? "Verificando..." : "Ingresar"}
+          </button>
+        </form>
+      </section>
+    </main>
+  );
+}
+
+
+========== src/app/admin/page.tsx ==========
+
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import {
+  Landmark,
+  Users,
+  Wallet,
+  HandCoins,
+  CalendarDays,
+  ArrowUpRight,
+  ChevronRight,
+  CircleDollarSign,
+  ClipboardList,
+  LogOut,
+  House,
+  Settings,
+  RefreshCw,
+  ShieldCheck,
+  TrendingUp,
+} from "lucide-react";
+import { createClient } from "@/lib/supabase";
+
+type Resumen = {
+  socios: number;
+  sociosActivos: number;
+  aportaciones: number;
+  prestamos: number;
+  prestamosActivos: number;
+  pagosPrestamos: number;
+  saldo: number;
+  ciclo: number;
+};
+
+type SocioResumen = {
+  id: string;
+  estado: string | null;
+};
+
+type MontoResumen = {
+  monto: number | string | null;
+};
+
+type PrestamoResumen = {
+  monto: number | string | null;
+  saldo_pendiente: number | string | null;
+  estado: string | null;
+};
+
+type CicloResumen = {
+  numero_ciclo: number | null;
+};
+
+const dinero = (valor: number): string =>
+  valor.toLocaleString("es-EC", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+  });
+
+const accesos = [
+  { nombre: "Socios", icono: Users, ruta: "/admin/socios" },
+  { nombre: "Aportes", icono: Wallet, ruta: "/admin/aportaciones" },
+  { nombre: "PrÃ©stamos", icono: HandCoins, ruta: "/admin/prestamos" },
+  { nombre: "Calendario", icono: CalendarDays, ruta: "/admin/calendario" },
+  { nombre: "Movimientos", icono: ClipboardList, ruta: "/admin/movimientos" },
+  { nombre: "Ciclos", icono: CircleDollarSign, ruta: "/admin/ciclos" },
+  { nombre: "PIN", icono: Settings, ruta: "/admin/pines" },
+];
+
+export default function AdminPage() {
+  const router = useRouter();
+
+  const [seccion, setSeccion] = useState<string>("Inicio");
+  const [cargando, setCargando] = useState<boolean>(true);
+  const [error, setError] = useState<string>("");
+
+  const [resumen, setResumen] = useState<Resumen>({
+    socios: 0,
+    sociosActivos: 0,
+    aportaciones: 0,
+    prestamos: 0,
+    prestamosActivos: 0,
+    pagosPrestamos: 0,
+    saldo: 0,
+    ciclo: 0,
+  });
+
+  async function cargarResumen(): Promise<void> {
+    setCargando(true);
+    setError("");
+
+    try {
+      const supabase = createClient();
+
+      const { data: usuario, error: authError } =
+        await supabase.auth.getUser();
+
+      if (authError || !usuario.user) {
+        router.replace("/admin/login");
+        return;
+      }
+
+      const { data: admin, error: adminError } = await supabase
+        .from("admin_fondo")
+        .select("usuario_id")
+        .eq("usuario_id", usuario.user.id)
+        .eq("activo", true)
+        .maybeSingle();
+
+      if (adminError || !admin) {
+        router.replace("/admin/login");
+        return;
+      }
+
+      const [
+        sociosRes,
+        aportacionesRes,
+        prestamosRes,
+        pagosRes,
+        ciclosRes,
+      ] = await Promise.all([
+        supabase.from("socios").select("id, estado"),
+        supabase.from("aportaciones").select("monto"),
+        supabase.from("prestamos").select("monto, saldo_pendiente, estado"),
+        supabase.from("pagos_prestamo").select("monto"),
+        supabase.from("ciclos").select("numero_ciclo"),
+      ]);
+
+      // Comprobar errores de las consultas sin usar callbacks sin tipo.
+      if (sociosRes.error) throw new Error(sociosRes.error.message);
+      if (aportacionesRes.error) throw new Error(aportacionesRes.error.message);
+      if (prestamosRes.error) throw new Error(prestamosRes.error.message);
+      if (pagosRes.error) throw new Error(pagosRes.error.message);
+      if (ciclosRes.error) throw new Error(ciclosRes.error.message);
+
+      const socios: SocioResumen[] =
+        (sociosRes.data || []) as SocioResumen[];
+
+      const aportaciones: MontoResumen[] =
+        (aportacionesRes.data || []) as MontoResumen[];
+
+      const prestamos: PrestamoResumen[] =
+        (prestamosRes.data || []) as PrestamoResumen[];
+
+      const pagos: MontoResumen[] =
+        (pagosRes.data || []) as MontoResumen[];
+
+      const ciclos: CicloResumen[] =
+        (ciclosRes.data || []) as CicloResumen[];
+
+      const totalAportaciones = aportaciones.reduce(
+        (total: number, item: MontoResumen): number => {
+          return total + Number(item.monto || 0);
+        },
+        0
+      );
+
+      const totalPrestamos = prestamos.reduce(
+        (total: number, item: PrestamoResumen): number => {
+          return total + Number(item.monto || 0);
+        },
+        0
+      );
+
+      const totalPagos = pagos.reduce(
+        (total: number, item: MontoResumen): number => {
+          return total + Number(item.monto || 0);
+        },
+        0
+      );
+
+      const prestamosActivos = prestamos.filter(
+        (item: PrestamoResumen): boolean => {
+          const estado = (item.estado || "").toLowerCase();
+
+          return ![
+            "pagado",
+            "cancelado",
+            "terminado",
+            "finalizado",
+          ].includes(estado);
+        }
+      );
+
+      const cicloActual = ciclos.reduce(
+        (mayor: number, item: CicloResumen): number => {
+          return Math.max(mayor, Number(item.numero_ciclo || 0));
+        },
+        0
+      );
+
+      const sociosActivos = socios.filter(
+        (item: SocioResumen): boolean => item.estado === "activo"
+      ).length;
+
+      setResumen({
+        socios: socios.length,
+        sociosActivos,
+        aportaciones: totalAportaciones,
+        prestamos: totalPrestamos,
+        prestamosActivos: prestamosActivos.length,
+        pagosPrestamos: totalPagos,
+        saldo: totalAportaciones - totalPrestamos + totalPagos,
+        ciclo: cicloActual,
+      });
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "No se pudo cargar el resumen del fondo."
+      );
+    } finally {
+      setCargando(false);
+    }
+  }
+
+  useEffect(() => {
+    void cargarResumen();
+  }, []);
+
+  async function cerrarSesion(): Promise<void> {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.replace("/admin/login");
+  }
+
+  return (
+    <main className="min-h-screen bg-[#eef1f5] px-3 pb-28 pt-4">
+      <div className="mx-auto min-h-screen w-full max-w-[430px] overflow-hidden bg-white shadow-xl sm:rounded-[28px] sm:border sm:border-slate-200">
+
+        {/* ENCABEZADO */}
+        <header className="flex items-center justify-between px-5 pb-5 pt-6">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#fff4b8] text-[#092957]">
+              <Landmark size={24} />
+            </div>
+            <div>
+              <h1 className="text-[15px] font-extrabold text-[#092957]">
+                BANCO DIVINO NIÃ‘O
+              </h1>
+              <p className="text-[10px] text-slate-500">
+                Panel administrativo
+              </p>
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <button
+              onClick={cargarResumen}
+              aria-label="Actualizar"
+              className="rounded-full bg-slate-50 p-2.5 text-[#092957]"
+            >
+              <RefreshCw
+                size={18}
+                className={cargando ? "animate-spin" : ""}
+              />
+            </button>
+
+            <button
+              onClick={cerrarSesion}
+              aria-label="Cerrar sesiÃ³n"
+              className="rounded-full bg-slate-50 p-2.5 text-[#092957]"
+            >
+              <LogOut size={18} />
+            </button>
+          </div>
+        </header>
+
+        {/* PRESENTACIÃ“N */}
+        <section className="px-5 pb-5">
+          <p className="text-[11px] font-bold tracking-wider text-[#b49a00]">
+            PANEL DE CONTROL
+          </p>
+          <h2 className="mt-1 text-2xl font-extrabold text-[#092957]">
+            Resumen general
+          </h2>
+          <p className="mt-1 text-xs text-slate-500">
+            Administra los recursos de tu fondo comunitario.
+          </p>
+        </section>
+
+        {/* SALDO */}
+        <section className="px-5">
+          <div className="relative overflow-hidden rounded-[23px] bg-[#092957] p-5 text-white">
+            <div className="absolute -right-10 -top-12 h-40 w-40 rounded-full border-[22px] border-white/5" />
+
+            <div className="relative flex items-center justify-between">
+              <div>
+                <p className="text-[11px] text-blue-100">
+                  DISPONIBILIDAD DEL FONDO
+                </p>
+                <p className="mt-1 text-xs text-blue-100">
+                  Saldo calculado
+                </p>
+              </div>
+              <div className="rounded-xl bg-white/10 p-3 text-[#ffdc00]">
+                <Landmark size={25} />
+              </div>
+            </div>
+
+            <p className="relative mt-5 text-[29px] font-extrabold">
+              {cargando ? "Cargando..." : dinero(resumen.saldo)}
+            </p>
+
+            <div className="relative mt-4 flex items-center gap-2 border-t border-white/15 pt-3">
+              <ShieldCheck size={15} className="text-[#ffdc00]" />
+              <p className="text-[10px] text-blue-100">
+                Basado en los movimientos registrados
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {error && (
+          <div className="mx-5 mt-4 rounded-xl bg-red-50 p-3 text-xs text-red-700">
+            Error al cargar: {error}
+          </div>
+        )}
+
+        {/* ESTADO DEL FONDO */}
+        <section className="pt-7">
+          <div className="mb-3 flex items-center justify-between px-5">
+            <h2 className="text-[16px] font-extrabold text-[#092957]">
+              Estado del fondo
+            </h2>
+            <span className="text-[10px] text-slate-400">Desliza</span>
+          </div>
+
+          <div className="flex gap-2.5 overflow-x-auto px-5 pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {[
+              {
+                nombre: "Socios",
+                valor: cargando ? "â€”" : String(resumen.socios),
+                detalle: `${resumen.sociosActivos} activos`,
+                icono: Users,
+                color: "bg-[#fff4b8] text-[#092957]",
+              },
+              {
+                nombre: "PrÃ©stamos activos",
+                valor: cargando ? "â€”" : String(resumen.prestamosActivos),
+                detalle: dinero(resumen.prestamos),
+                icono: HandCoins,
+                color: "bg-[#eaf1fc] text-[#315b91]",
+              },
+              {
+                nombre: "Aportaciones",
+                valor: cargando ? "â€”" : dinero(resumen.aportaciones),
+                detalle: "Total registrado",
+                icono: Wallet,
+                color: "bg-[#eaf7f0] text-[#29945c]",
+              },
+              {
+                nombre: "Ciclo actual",
+                valor: cargando ? "â€”" : String(resumen.ciclo || "â€”"),
+                detalle: "Ãšltimo ciclo registrado",
+                icono: CalendarDays,
+                color: "bg-[#fff0e7] text-[#d66b25]",
+              },
+            ].map((item) => {
+              const Icono = item.icono;
+
+              return (
+                <div
+                  key={item.nombre}
+                  className="flex min-w-[155px] shrink-0 items-center gap-3 rounded-xl border border-slate-100 p-3"
+                >
+                  <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${item.color}`}>
+                    <Icono size={18} />
+                  </div>
+
+                  <div className="min-w-0">
+                    <p className="truncate text-[10px] text-slate-500">
+                      {item.nombre}
+                    </p>
+                    <p className="truncate text-[15px] font-extrabold text-[#092957]">
+                      {item.valor}
+                    </p>
+                    <p className="truncate text-[9px] text-slate-400">
+                      {item.detalle}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* MÃ“DULOS ADMINISTRATIVOS */}
+        <section className="px-5 pt-7">
+          <div className="mb-3">
+            <h2 className="text-[16px] font-extrabold text-[#092957]">
+              MÃ³dulos administrativos
+            </h2>
+            <p className="mt-1 text-[10px] text-slate-400">
+              Accede a las herramientas de administraciÃ³n
+            </p>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            {accesos.map((item) => {
+              const Icono = item.icono;
+
+              return (
+                <button
+                  key={item.nombre}
+                  onClick={() => router.push(item.ruta)}
+                  className="flex min-h-[100px] flex-col items-center justify-center gap-2 rounded-2xl border border-slate-100 bg-white p-3 shadow-sm transition active:scale-95 hover:border-[#d6b900] hover:bg-[#fffdf4]"
+                >
+                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#fff4b8] text-[#092957]">
+                    <Icono size={21} />
+                  </div>
+                  <span className="text-center text-[11px] font-bold text-[#092957]">
+                    {item.nombre}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* MOVIMIENTO FINANCIERO */}
+        <section className="pt-7">
+          <div className="mb-3 flex items-center justify-between px-5">
+            <h2 className="text-[16px] font-extrabold text-[#092957]">
+              Movimiento financiero
+            </h2>
+            <span className="text-[10px] text-slate-400">Desliza</span>
+          </div>
+
+          <div className="flex gap-2.5 overflow-x-auto px-5 pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div className="min-w-[165px] shrink-0 rounded-xl border border-slate-100 p-3">
+              <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-[#eaf7f0] text-[#29945c]">
+                <TrendingUp size={18} />
+              </div>
+              <p className="text-[10px] text-slate-500">Aportaciones</p>
+              <p className="mt-1 text-sm font-extrabold text-[#092957]">
+                {cargando ? "â€”" : dinero(resumen.aportaciones)}
+              </p>
+              <p className="mt-1 text-[9px] text-slate-400">
+                Total registrado
+              </p>
+            </div>
+
+            <div className="min-w-[165px] shrink-0 rounded-xl border border-slate-100 p-3">
+              <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-[#fff0e7] text-[#d66b25]">
+                <HandCoins size={18} />
+              </div>
+              <p className="text-[10px] text-slate-500">
+                PrÃ©stamos entregados
+              </p>
+              <p className="mt-1 text-sm font-extrabold text-[#092957]">
+                {cargando ? "â€”" : dinero(resumen.prestamos)}
+              </p>
+              <p className="mt-1 text-[9px] text-slate-400">
+                Total registrado
+              </p>
+            </div>
+
+            <div className="min-w-[165px] shrink-0 rounded-xl border border-slate-100 p-3">
+              <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-[#eaf1fc] text-[#315b91]">
+                <Wallet size={18} />
+              </div>
+              <p className="text-[10px] text-slate-500">
+                Abonos de prÃ©stamos
+              </p>
+              <p className="mt-1 text-sm font-extrabold text-[#092957]">
+                {cargando ? "â€”" : dinero(resumen.pagosPrestamos)}
+              </p>
+              <p className="mt-1 text-[9px] text-slate-400">
+                Total registrado
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* AVISO */}
+        <section className="mx-5 mb-6 mt-6 rounded-xl bg-[#fff9e8] p-4">
+          <div className="flex items-center gap-3">
+            <div className="rounded-full bg-white p-2 text-[#c69b00]">
+              <ArrowUpRight size={19} />
+            </div>
+
+            <div className="flex-1">
+              <p className="text-xs font-bold text-[#092957]">
+                Control del fondo
+              </p>
+              <p className="mt-1 text-[10px] leading-4 text-slate-500">
+                MantÃ©n actualizados los registros de tu comunidad.
+              </p>
+            </div>
+
+            <ChevronRight size={17} className="text-slate-400" />
+          </div>
+        </section>
+
+        {/* NAVEGACIÃ“N INFERIOR */}
+        <nav className="fixed bottom-0 left-1/2 z-50 flex w-full max-w-[430px] -translate-x-1/2 justify-around border-t border-slate-200 bg-white px-2 pb-5 pt-3 sm:rounded-b-[28px]">
+          {[
+            { nombre: "Inicio", icono: House, ruta: "/admin" },
+            { nombre: "Socios", icono: Users, ruta: "/admin/socios" },
+            { nombre: "Fondo", icono: Wallet, ruta: "/admin/aportaciones" },
+            { nombre: "Ajustes", icono: Settings, ruta: "/admin/pines" },
+          ].map((item) => {
+            const Icono = item.icono;
+            const activo = seccion === item.nombre;
+
+            return (
+              <button
+                key={item.nombre}
+                onClick={() => {
+                  setSeccion(item.nombre);
+
+                  if (item.nombre !== "Inicio") {
+                    router.push(item.ruta);
+                  }
+                }}
+                className={`flex min-w-[65px] flex-col items-center gap-1 text-[10px] ${
+                  activo
+                    ? "font-bold text-[#092957]"
+                    : "text-slate-400"
+                }`}
+              >
+                <Icono size={20} />
+                {item.nombre}
+              </button>
+            );
+          })}
+        </nav>
+      </div>
+    </main>
+  );
+}
+
+
+========== src/app/socios/login/page.tsx ==========
+
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import {
+  UserRound,
+  CreditCard,
+  ArrowLeft,
+  ShieldCheck,
+  Loader2,
+  LockKeyhole,
+  Eye,
+  EyeOff,
+  KeyRound,
+} from "lucide-react";
+import { createClient } from "@/lib/supabase";
+
+export default function SociosLoginPage() {
+  const router = useRouter();
+  const supabase = createClient();
+
+  const [cedula, setCedula] = useState("");
+  const [pin, setPin] = useState("");
+  const [mostrarPin, setMostrarPin] = useState(false);
+  const [cargando, setCargando] = useState(false);
+  const [error, setError] = useState("");
+
+  async function continuar(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError("");
+
+    if (!/^\d{10}$/.test(cedula)) {
+      setError("Ingresa una cÃ©dula vÃ¡lida de 10 dÃ­gitos.");
+      return;
+    }
+
+    if (!/^\d{4}$/.test(pin)) {
+      setError("Ingresa tu PIN de 4 dÃ­gitos.");
+      return;
+    }
+
+    setCargando(true);
+
+    try {
+      const respuesta = await fetch("/api/socios/validar-pin", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ cedula, pin }),
+      });
+
+      const resultado = await respuesta.json();
+
+      if (!respuesta.ok) {
+        setError(resultado.error || "No se pudo iniciar sesiÃ³n.");
+        return;
+      }
+
+      if (!resultado.token_hash) {
+        setError("No se recibiÃ³ el cÃ³digo de autenticaciÃ³n.");
+        return;
+      }
+
+      const { error: sesionError } = await supabase.auth.verifyOtp({
+        token_hash: resultado.token_hash,
+        type: "magiclink",
+      });
+
+      if (sesionError) {
+        setError("No se pudo establecer la sesiÃ³n. Contacta al administrador.");
+        return;
+      }
+
+      router.replace("/socios");
+      router.refresh();
+    } catch {
+      setError("Error de conexiÃ³n. IntÃ©ntalo nuevamente.");
+    } finally {
+      setCargando(false);
+    }
+  }
+
+  return (
+    <main className="min-h-screen bg-[#eef1f5] flex justify-center">
+      <section className="w-full max-w-[430px] min-h-screen bg-white px-7 py-7 flex flex-col">
+        <header className="flex items-center justify-between">
+          <Link
+            href="/"
+            className="flex items-center gap-2 text-[#092957] text-sm font-semibold"
+          >
+            <ArrowLeft size={19} />
+            Volver
+          </Link>
+
+          <span className="text-[10px] font-bold tracking-wider text-gray-400">
+            BANCA MÃ“VIL
+          </span>
+        </header>
+
+        <div className="flex-1 flex flex-col justify-center">
+          <div className="w-16 h-16 rounded-2xl bg-[#fff4b8] text-[#092957] flex items-center justify-center mb-7">
+            <UserRound size={32} strokeWidth={1.7} />
+          </div>
+
+          <p className="text-xs font-bold tracking-[2px] text-[#b49a00] mb-2">
+            ACCESO DE SOCIOS
+          </p>
+
+          <h1 className="text-[29px] leading-tight font-extrabold text-[#092957]">
+            Bienvenido
+          </h1>
+
+          <p className="text-sm text-gray-500 mt-3 leading-6">
+            Ingresa tu cÃ©dula y tu PIN de seguridad para acceder a tu banca mÃ³vil.
+          </p>
+
+          <form onSubmit={continuar} className="mt-9">
+            <label className="block text-sm font-bold text-[#092957] mb-2">
+              NÃºmero de cÃ©dula
+            </label>
+
+            <div className="h-14 border border-gray-200 rounded-xl flex items-center px-4 gap-3 focus-within:border-[#d6b900]">
+              <CreditCard size={20} className="text-gray-400" />
+              <input
+                type="text"
+                inputMode="numeric"
+                autoComplete="username"
+                maxLength={10}
+                required
+                value={cedula}
+                onChange={(e) => {
+                  setCedula(e.target.value.replace(/\D/g, "").slice(0, 10));
+                  setError("");
+                }}
+                placeholder="Ingresa tu cÃ©dula"
+                className="w-full outline-none text-[#092957] text-sm bg-transparent"
+              />
+            </div>
+
+            <label className="block text-sm font-bold text-[#092957] mt-6 mb-2">
+              PIN de seguridad
+            </label>
+
+            <div className="h-14 border border-gray-200 rounded-xl flex items-center px-4 gap-3 focus-within:border-[#d6b900]">
+              <LockKeyhole size={20} className="text-gray-400" />
+              <input
+                type={mostrarPin ? "text" : "password"}
+                inputMode="numeric"
+                autoComplete="current-password"
+                maxLength={4}
+                required
+                value={pin}
+                onChange={(e) => {
+                  setPin(e.target.value.replace(/\D/g, "").slice(0, 4));
+                  setError("");
+                }}
+                placeholder="â€¢â€¢â€¢â€¢"
+                className="w-full outline-none text-[#092957] text-sm bg-transparent tracking-[8px]"
+              />
+              <button
+                type="button"
+                onClick={() => setMostrarPin(!mostrarPin)}
+                className="text-gray-400"
+                aria-label={mostrarPin ? "Ocultar PIN" : "Mostrar PIN"}
+              >
+                {mostrarPin ? <EyeOff size={20} /> : <Eye size={20} />}
+              </button>
+            </div>
+
+            {error && (
+              <p className="mt-3 text-sm text-red-600">{error}</p>
+            )}
+
+            <button
+              type="submit"
+              disabled={cargando}
+              className="w-full h-14 mt-6 rounded-xl bg-[#ffdc00] text-[#092957] font-bold text-sm flex items-center justify-center gap-2 hover:bg-[#f1ce00] disabled:opacity-60"
+            >
+              {cargando ? (
+                <>
+                  <Loader2 size={19} className="animate-spin" />
+                  Verificando...
+                </>
+              ) : (
+                "Ingresar"
+              )}
+            </button>
+          </form>
+
+          <Link
+            href="/socios/configurar-pin"
+            className="mt-5 flex items-center justify-center gap-2 text-sm font-bold text-[#092957] hover:text-[#b49a00]"
+          >
+            <KeyRound size={17} />
+            Â¿Olvidaste tu PIN?
+          </Link>
+
+          <div className="mt-7 flex items-start gap-3 rounded-xl bg-[#f7f8fa] p-4">
+            <ShieldCheck size={20} className="text-[#092957] shrink-0" />
+            <p className="text-xs text-gray-500 leading-5">
+              Tu informaciÃ³n financiera es privada y estÃ¡ protegida.
+            </p>
+          </div>
+        </div>
+
+        <footer className="text-center pt-5">
+          <p className="text-xs font-bold text-[#092957]">BANCO DIVINO NIÃ‘O</p>
+          <p className="text-[10px] text-gray-400 mt-1">
+            Tu confianza, nuestro compromiso.
+          </p>
+        </footer>
+      </section>
+    </main>
+  );
+}
+
+
+========== src/app/socios/page.tsx ==========
+
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import {
+  UserRound,
+  Wallet,
+  HandCoins,
+  ArrowDownLeft,
+  ArrowUpRight,
+  CalendarDays,
+  LogOut,
+  ShieldCheck,
+  Loader2,
+  History,
+  CreditCard,
+  Landmark,
+} from "lucide-react";
+import { createClient } from "@/lib/supabase";
+
+type Socio = {
+  id: number;
+  numero_socio: number | null;
+  turno: number | null;
+  nombres: string;
+  apellidos: string;
+  estado: string;
+  fecha_ingreso: string;
+};
+
+type Aportacion = {
+  id: number;
+  monto: number;
+  fecha_pago: string;
+  semana_inicio: string;
+};
+
+type Prestamo = {
+  id: number;
+  monto: number;
+  total_a_pagar: number;
+  saldo_pendiente: number;
+  fecha_entrega: string | null;
+  estado: string;
+  ciclo_id: number | null;
+};
+
+type Pago = {
+  id: number;
+  prestamo_id: number;
+  monto: number;
+  fecha_pago: string;
+};
+
+type Ciclo = {
+  numero_ciclo: number;
+  monto_prestamo: number;
+  estado: string;
+  fecha_inicio: string | null;
+};
+
+const dinero = (cantidad: number) =>
+  new Intl.NumberFormat("es-EC", {
+    style: "currency",
+    currency: "USD",
+  }).format(cantidad || 0);
+
+const fecha = (valor: string | null) => {
+  if (!valor) return "Sin fecha";
+
+  return new Date(valor.includes("T") ? valor : `${valor}T00:00:00`)
+    .toLocaleDateString("es-EC", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+};
+
+export default function SociosPage() {
+  const router = useRouter();
+
+  const [socio, setSocio] = useState<Socio | null>(null);
+  const [aportaciones, setAportaciones] = useState<Aportacion[]>([]);
+  const [prestamos, setPrestamos] = useState<Prestamo[]>([]);
+  const [pagos, setPagos] = useState<Pago[]>([]);
+  const [ciclo, setCiclo] = useState<Ciclo | null>(null);
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let activo = true;
+
+    async function cargarDatos() {
+      const supabase = createClient();
+
+      try {
+        const { data: authData, error: authError } =
+          await supabase.auth.getUser();
+
+        if (authError || !authData.user) {
+          router.replace("/socios/login");
+          return;
+        }
+
+        const { data: registro, error: socioError } = await supabase
+          .from("socios")
+          .select(
+            "id,numero_socio,turno,nombres,apellidos,estado,fecha_ingreso"
+          )
+          .eq("auth_user_id", authData.user.id)
+          .maybeSingle();
+
+        if (socioError || !registro) {
+          throw new Error(
+            "No se encontrÃ³ tu registro de socio. Contacta al administrador."
+          );
+        }
+
+        if (!activo) return;
+
+        setSocio(registro as Socio);
+
+        const [
+          { data: aportes, error: aportesError },
+          { data: prestamosData, error: prestamosError },
+          { data: ciclosData },
+        ] = await Promise.all([
+          supabase
+            .from("aportaciones")
+            .select("id,monto,fecha_pago,semana_inicio")
+            .eq("socio_id", registro.id)
+            .order("fecha_pago", { ascending: false }),
+
+          supabase
+            .from("prestamos")
+            .select(
+              "id,monto,total_a_pagar,saldo_pendiente,fecha_entrega,estado,ciclo_id"
+            )
+            .eq("socio_id", registro.id)
+            .order("creado_at", { ascending: false }),
+
+          supabase
+            .from("ciclos")
+            .select("numero_ciclo,monto_prestamo,estado,fecha_inicio")
+            .order("numero_ciclo", { ascending: false })
+            .limit(1),
+        ]);
+
+        if (aportesError) throw aportesError;
+        if (prestamosError) throw prestamosError;
+
+        const listaAportes = (aportes || []) as Aportacion[];
+        const listaPrestamos = (prestamosData || []) as Prestamo[];
+
+        let listaPagos: Pago[] = [];
+
+        if (listaPrestamos.length > 0) {
+          const ids = listaPrestamos.map((p) => p.id);
+
+          const { data: pagosData, error: pagosError } = await supabase
+            .from("pagos_prestamo")
+            .select("id,prestamo_id,monto,fecha_pago")
+            .in("prestamo_id", ids)
+            .order("fecha_pago", { ascending: false });
+
+          if (pagosError) throw pagosError;
+
+          listaPagos = (pagosData || []) as Pago[];
+        }
+
+        if (!activo) return;
+
+        setAportaciones(listaAportes);
+        setPrestamos(listaPrestamos);
+        setPagos(listaPagos);
+        setCiclo(
+          ciclosData?.length
+            ? (ciclosData[0] as Ciclo)
+            : null
+        );
+      } catch (err) {
+        if (activo) {
+          setError(
+            err instanceof Error
+              ? err.message
+              : "No se pudo cargar la informaciÃ³n."
+          );
+        }
+      } finally {
+        if (activo) setCargando(false);
+      }
+    }
+
+    cargarDatos();
+
+    return () => {
+      activo = false;
+    };
+  }, [router]);
+
+  async function cerrarSesion() {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.replace("/socios/login");
+    router.refresh();
+  }
+
+  const totalAportado = aportaciones.reduce(
+    (total, item) => total + Number(item.monto || 0),
+    0
+  );
+
+  const totalPrestado = prestamos.reduce(
+    (total, item) => total + Number(item.monto || 0),
+    0
+  );
+
+  const saldoPendiente = prestamos.reduce(
+    (total, item) => total + Number(item.saldo_pendiente || 0),
+    0
+  );
+
+  const totalAbonado = pagos.reduce(
+    (total, item) => total + Number(item.monto || 0),
+    0
+  );
+
+  if (cargando) {
+    return (
+      <main className="min-h-screen bg-[#eef1f5] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3 text-[#092957]">
+          <Loader2 size={34} className="animate-spin" />
+          <p className="text-sm font-semibold">Cargando tu banca mÃ³vil...</p>
+        </div>
+      </main>
+    );
+  }
+
+  if (error) {
+    return (
+      <main className="min-h-screen bg-[#eef1f5] flex justify-center p-5">
+        <div className="w-full max-w-[430px] bg-white rounded-3xl p-7 my-auto text-center">
+          <ShieldCheck size={38} className="mx-auto text-[#092957]" />
+          <h1 className="font-bold text-[#092957] mt-4">
+            No se pudo cargar tu cuenta
+          </h1>
+          <p className="text-sm text-gray-500 mt-3">{error}</p>
+          <button
+            onClick={() => router.refresh()}
+            className="mt-6 bg-[#ffdc00] text-[#092957] font-bold rounded-xl px-6 py-3"
+          >
+            Volver a intentar
+          </button>
+          <button
+            onClick={cerrarSesion}
+            className="block mx-auto mt-4 text-sm text-gray-500"
+          >
+            Cerrar sesiÃ³n
+          </button>
+        </div>
+      </main>
+    );
+  }
+
+  if (!socio) return null;
+
+  return (
+    <main className="min-h-screen bg-[#eef1f5] flex justify-center">
+      <section className="w-full max-w-[430px] min-h-screen bg-[#f7f8fa] shadow-xl pb-24">
+        <header className="bg-[#092957] px-6 pt-8 pb-8 rounded-b-[30px] text-white">
+          <div className="flex justify-between items-center">
+            <div>
+              <p className="text-[10px] tracking-[2px] text-yellow-300 font-bold">
+                BANCO DIVINO NIÃ‘O
+              </p>
+              <p className="text-xs text-blue-100 mt-1">Banca mÃ³vil</p>
+            </div>
+
+            <button
+              onClick={cerrarSesion}
+              className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center"
+              aria-label="Cerrar sesiÃ³n"
+            >
+              <LogOut size={19} />
+            </button>
+          </div>
+
+          <div className="mt-9 flex items-center gap-3">
+            <div className="w-12 h-12 rounded-2xl bg-[#ffdc00] text-[#092957] flex items-center justify-center">
+              <UserRound size={25} />
+            </div>
+
+            <div>
+              <p className="text-xs text-blue-200">Bienvenido</p>
+              <h1 className="text-xl font-extrabold">
+                {socio.nombres} {socio.apellidos}
+              </h1>
+              <p className="text-[11px] text-blue-200 mt-1">
+                Socio N.Âº {socio.numero_socio ?? "Pendiente"}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-7 bg-white/10 border border-white/10 rounded-2xl p-4 flex justify-between items-center">
+            <div>
+              <p className="text-[11px] text-blue-200">
+                Estado de tu membresÃ­a
+              </p>
+              <p className="text-sm font-bold mt-1 capitalize">
+                {socio.estado}
+              </p>
+            </div>
+            <ShieldCheck className="text-yellow-300" size={25} />
+          </div>
+        </header>
+
+        <div className="px-5 -mt-1">
+          <div className="grid grid-cols-2 gap-3 mt-5">
+            <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+              <div className="w-9 h-9 rounded-xl bg-yellow-50 text-[#b49a00] flex items-center justify-center">
+                <Wallet size={19} />
+              </div>
+              <p className="text-[11px] text-gray-500 mt-3">
+                Total aportado
+              </p>
+              <p className="text-lg font-extrabold text-[#092957] mt-1">
+                {dinero(totalAportado)}
+              </p>
+            </div>
+
+            <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+              <div className="w-9 h-9 rounded-xl bg-blue-50 text-[#092957] flex items-center justify-center">
+                <HandCoins size={19} />
+              </div>
+              <p className="text-[11px] text-gray-500 mt-3">
+                PrÃ©stamos recibidos
+              </p>
+              <p className="text-lg font-extrabold text-[#092957] mt-1">
+                {dinero(totalPrestado)}
+              </p>
+            </div>
+
+            <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+              <div className="w-9 h-9 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center">
+                <ArrowUpRight size={19} />
+              </div>
+              <p className="text-[11px] text-gray-500 mt-3">
+                Saldo pendiente
+              </p>
+              <p className="text-lg font-extrabold text-[#092957] mt-1">
+                {dinero(saldoPendiente)}
+              </p>
+            </div>
+
+            <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+              <div className="w-9 h-9 rounded-xl bg-green-50 text-green-700 flex items-center justify-center">
+                <ArrowDownLeft size={19} />
+              </div>
+              <p className="text-[11px] text-gray-500 mt-3">
+                Abonos realizados
+              </p>
+              <p className="text-lg font-extrabold text-[#092957] mt-1">
+                {dinero(totalAbonado)}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-5 bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-[#fff4b8] text-[#092957] flex items-center justify-center">
+                <Landmark size={21} />
+              </div>
+              <div>
+                <h2 className="font-extrabold text-[#092957] text-sm">
+                  Ciclo comunitario
+                </h2>
+                <p className="text-[11px] text-gray-400">
+                  InformaciÃ³n general del fondo
+                </p>
+              </div>
+            </div>
+
+            {ciclo ? (
+              <div className="mt-5 grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-[11px] text-gray-400">Ãšltimo ciclo</p>
+                  <p className="text-lg font-extrabold text-[#092957] mt-1">
+                    N.Âº {ciclo.numero_ciclo}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[11px] text-gray-400">
+                    Monto establecido
+                  </p>
+                  <p className="text-lg font-extrabold text-[#092957] mt-1">
+                    {dinero(Number(ciclo.monto_prestamo))}
+                  </p>
+                </div>
+                <div className="col-span-2 border-t border-gray-100 pt-3">
+                  <p className="text-xs text-gray-500">
+                    Estado: <span className="font-bold text-[#092957] capitalize">{ciclo.estado}</span>
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs text-gray-400 mt-5">
+                TodavÃ­a no hay ciclos registrados.
+              </p>
+            )}
+          </div>
+
+          <div className="mt-6">
+            <div className="flex justify-between items-center mb-3">
+              <h2 className="font-extrabold text-[#092957] text-sm">
+                Mis aportaciones
+              </h2>
+              <History size={18} className="text-gray-400" />
+            </div>
+
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 divide-y divide-gray-100">
+              {aportaciones.length > 0 ? (
+                aportaciones.slice(0, 5).map((item) => (
+                  <div
+                    key={item.id}
+                    className="p-4 flex justify-between items-center"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-green-50 text-green-700 flex items-center justify-center">
+                        <ArrowDownLeft size={18} />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-[#092957]">
+                          AportaciÃ³n semanal
+                        </p>
+                        <p className="text-[10px] text-gray-400 mt-1">
+                          {fecha(item.fecha_pago)}
+                        </p>
+                      </div>
+                    </div>
+                    <p className="text-sm font-extrabold text-green-700">
+                      +{dinero(Number(item.monto))}
+                    </p>
+                  </div>
+                ))
+              ) : (
+                <p className="p-5 text-xs text-gray-400 text-center">
+                  No tienes aportaciones registradas.
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-6">
+            <h2 className="font-extrabold text-[#092957] text-sm mb-3">
+              Mis prÃ©stamos
+            </h2>
+
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 divide-y divide-gray-100">
+              {prestamos.length > 0 ? (
+                prestamos.slice(0, 5).map((item) => (
+                  <div key={item.id} className="p-4">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-xs font-bold text-[#092957]">
+                          PrÃ©stamo #{item.id}
+                        </p>
+                        <p className="text-[10px] text-gray-400 mt-1">
+                          Entregado: {fecha(item.fecha_entrega)}
+                        </p>
+                      </div>
+                      <span className="text-[10px] rounded-full bg-blue-50 text-[#092957] px-3 py-1 capitalize">
+                        {item.estado}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 mt-4">
+                      <div>
+                        <p className="text-[10px] text-gray-400">Recibido</p>
+                        <p className="text-xs font-bold text-[#092957] mt-1">
+                          {dinero(Number(item.monto))}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-gray-400">Total</p>
+                        <p className="text-xs font-bold text-[#092957] mt-1">
+                          {dinero(Number(item.total_a_pagar))}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-gray-400">Pendiente</p>
+                        <p className="text-xs font-bold text-orange-600 mt-1">
+                          {dinero(Number(item.saldo_pendiente))}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="p-5 text-xs text-gray-400 text-center">
+                  No tienes prÃ©stamos registrados.
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-6">
+            <h2 className="font-extrabold text-[#092957] text-sm mb-3">
+              Mis Ãºltimos abonos
+            </h2>
+
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 divide-y divide-gray-100">
+              {pagos.length > 0 ? (
+                pagos.slice(0, 5).map((item) => (
+                  <div
+                    key={item.id}
+                    className="p-4 flex justify-between items-center"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-green-50 text-green-700 flex items-center justify-center">
+                        <CreditCard size={18} />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-[#092957]">
+                          Abono prÃ©stamo #{item.prestamo_id}
+                        </p>
+                        <p className="text-[10px] text-gray-400 mt-1">
+                          {fecha(item.fecha_pago)}
+                        </p>
+                      </div>
+                    </div>
+                    <p className="text-sm font-extrabold text-green-700">
+                      {dinero(Number(item.monto))}
+                    </p>
+                  </div>
+                ))
+              ) : (
+                <p className="p-5 text-xs text-gray-400 text-center">
+                  No tienes abonos registrados.
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-6 flex items-center justify-center gap-2 text-[10px] text-gray-400">
+            <ShieldCheck size={15} />
+            Tu informaciÃ³n financiera es privada.
+          </div>
+        </div>
+
+        <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] h-[76px] bg-white border-t border-gray-100 flex justify-around items-center px-3 z-20">
+          <div className="flex flex-col items-center gap-1 text-[#092957]">
+            <Landmark size={20} />
+            <span className="text-[10px] font-bold">Inicio</span>
+          </div>
+          <div className="flex flex-col items-center gap-1 text-gray-400">
+            <Wallet size={20} />
+            <span className="text-[10px]">Aportes</span>
+          </div>
+          <div className="flex flex-col items-center gap-1 text-gray-400">
+            <HandCoins size={20} />
+            <span className="text-[10px]">PrÃ©stamos</span>
+          </div>
+          <div className="flex flex-col items-center gap-1 text-gray-400">
+            <CalendarDays size={20} />
+            <span className="text-[10px]">Ciclos</span>
+          </div>
+        </nav>
+      </section>
+    </main>
+  );
+}
+
+
+========== src/app/api/socios/configurar-pin/route.ts ==========
+
+import { NextResponse } from "next/server";
+import { createAdminClient } from "@/lib/supabase-admin";
+import bcrypt from "bcryptjs";
+
+export async function POST(request: Request) {
+  try {
+    const { cedula, codigo, pin } = await request.json();
+
+    if (
+      typeof cedula !== "string" ||
+      typeof codigo !== "string" ||
+      typeof pin !== "string" ||
+      !/^\d{10}$/.test(cedula) ||
+      !/^\d{6}$/.test(codigo) ||
+      !/^\d{4}$/.test(pin)
+    ) {
+      return NextResponse.json(
+        { error: "Los datos ingresados no son vÃ¡lidos." },
+        { status: 400 }
+      );
+    }
+
+    const supabase = createAdminClient();
+
+    const { data: socio, error: socioError } = await supabase
+      .from("socios")
+      .select("id, estado")
+      .eq("cedula", cedula)
+      .maybeSingle();
+
+    if (socioError || !socio || socio.estado !== "activo") {
+      return NextResponse.json(
+        { error: "No se pudo verificar tu registro." },
+        { status: 400 }
+      );
+    }
+
+    const { data: recuperacion, error: codigoError } = await supabase
+      .from("recuperacion_pin")
+      .select("id, codigo_hash, intentos, expira_at")
+      .eq("socio_id", socio.id)
+      .eq("usado", false)
+      .order("creado_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (
+      codigoError ||
+      !recuperacion ||
+      new Date(recuperacion.expira_at).getTime() <= Date.now() ||
+      recuperacion.intentos >= 5
+    ) {
+      return NextResponse.json(
+        { error: "CÃ³digo invÃ¡lido o vencido. Solicita uno nuevo al administrador." },
+        { status: 400 }
+      );
+    }
+
+    const codigoCorrecto = await bcrypt.compare(
+      codigo,
+      recuperacion.codigo_hash
+    );
+
+    if (!codigoCorrecto) {
+      const intentos = recuperacion.intentos + 1;
+
+      await supabase
+        .from("recuperacion_pin")
+        .update({
+          intentos,
+          usado: intentos >= 5,
+        })
+        .eq("id", recuperacion.id)
+        .eq("usado", false);
+
+      return NextResponse.json(
+        { error: "CÃ³digo incorrecto." },
+        { status: 400 }
+      );
+    }
+
+    const pinHash = await bcrypt.hash(pin, 12);
+
+    const { data: actualizado, error: actualizarError } = await supabase
+      .from("socios")
+      .update({
+        pin_hash: pinHash,
+        pin_configurado: true,
+        pin_intentos: 0,
+        pin_bloqueado_hasta: null,
+        pin_actualizado_at: new Date().toISOString(),
+      })
+      .eq("id", socio.id)
+      .eq("estado", "activo")
+      .select("id")
+      .maybeSingle();
+
+    if (actualizarError || !actualizado) {
+      return NextResponse.json(
+        { error: "No se pudo guardar el nuevo PIN." },
+        { status: 500 }
+      );
+    }
+
+    const { error: consumirError } = await supabase
+      .from("recuperacion_pin")
+      .update({ usado: true })
+      .eq("id", recuperacion.id)
+      .eq("usado", false);
+
+    if (consumirError) {
+      return NextResponse.json(
+        { error: "El PIN fue actualizado, pero no se pudo cerrar el cÃ³digo. Contacta al administrador." },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ correcto: true });
+  } catch {
+    return NextResponse.json(
+      { error: "No se pudo configurar el PIN." },
+      { status: 500 }
+    );
+  }
+}
+
+
+========== src/app/api/socios/solicitar-codigo/route.ts ==========
+
+import { NextResponse } from "next/server";
+import { createAdminClient } from "@/lib/supabase-admin";
+import twilio from "twilio";
+import { randomInt } from "crypto";
+import bcrypt from "bcryptjs";
+
+export async function POST(request: Request) {
+  try {
+    const { cedula } = await request.json();
+
+    if (typeof cedula !== "string" || !/^\d{10}$/.test(cedula)) {
+      return NextResponse.json(
+        { error: "Datos invÃ¡lidos." },
+        { status: 400 }
+      );
+    }
+
+    const accountSid = process.env.TWILIO_ACCOUNT_SID;
+    const authToken = [OCULTO]
+    const from = process.env.TWILIO_PHONE_NUMBER;
+
+    if (!accountSid || !authToken || !from) {
+      return NextResponse.json(
+        { error: "El servicio SMS todavÃ­a no estÃ¡ configurado." },
+        { status: 503 }
+      );
+    }
+
+    const supabase = createAdminClient();
+
+    const { data: socio } = await supabase
+      .from("socios")
+      .select("id, telefono, estado, pin_configurado")
+      .eq("cedula", cedula)
+      .maybeSingle();
+
+    if (!socio || socio.estado !== "activo" || socio.pin_configurado) {
+      return NextResponse.json(
+        { error: "No se puede procesar la solicitud." },
+        { status: 400 }
+      );
+    }
+
+    if (!socio.telefono) {
+      return NextResponse.json(
+        { error: "Tu registro no tiene un telÃ©fono. Contacta al administrador." },
+        { status: 400 }
+      );
+    }
+
+    const { data: recientes } = await supabase
+      .from("recuperacion_pin")
+      .select("id")
+      .eq("socio_id", socio.id)
+      .gte("creado_at", new Date(Date.now() - 10 * 60 * 1000).toISOString());
+
+    if (recientes && recientes.length >= 3) {
+      return NextResponse.json(
+        { error: "Espera 10 minutos antes de solicitar otro cÃ³digo." },
+        { status: 429 }
+      );
+    }
+
+    let telefono = socio.telefono.replace(/[\s()-]/g, "");
+
+    if (telefono.startsWith("09")) {
+      telefono = "+593" + telefono.slice(1);
+    } else if (telefono.startsWith("9")) {
+      telefono = "+593" + telefono;
+    }
+
+    if (!/^\+593\d{9}$/.test(telefono)) {
+      return NextResponse.json(
+        { error: "El telÃ©fono registrado no tiene un formato vÃ¡lido." },
+        { status: 400 }
+      );
+    }
+
+    const codigo = String(randomInt(100000, 1000000));
+    const codigoHash = await bcrypt.hash(codigo, 12);
+
+    const { error: insertarError } = await supabase
+      .from("recuperacion_pin")
+      .insert({
+        socio_id: socio.id,
+        codigo_hash: codigoHash,
+        expira_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+        intentos: 0,
+        usado: false,
+      });
+
+    if (insertarError) {
+      return NextResponse.json(
+        { error: "No se pudo generar el cÃ³digo." },
+        { status: 500 }
+      );
+    }
+
+    const cliente = twilio(accountSid, authToken);
+
+    await cliente.messages.create({
+      body: `Banco Divino NiÃ±o: tu cÃ³digo de verificaciÃ³n es ${codigo}. Vence en 5 minutos. No lo compartas.`,
+      from,
+      to: telefono,
+    });
+
+    return NextResponse.json({
+      correcto: true,
+      mensaje: "CÃ³digo enviado al telÃ©fono registrado.",
+    });
+  } catch {
+    return NextResponse.json(
+      { error: "No se pudo enviar el cÃ³digo SMS." },
+      { status: 500 }
+    );
+  }
+}
+
+
+========== src/app/api/socios/validar-pin/route.ts ==========
+
+import { NextResponse } from "next/server";
+import { createAdminClient } from "@/lib/supabase-admin";
+import bcrypt from "bcryptjs";
+
+
+export async function POST(request: Request) {
+  try {
+    const { cedula, pin } = await request.json();
+
+    if (
+      typeof cedula !== "string" ||
+      typeof pin !== "string" ||
+      !/^\d{10}$/.test(cedula) ||
+      !/^\d{4}$/.test(pin)
+    ) {
+      return NextResponse.json(
+        { error: "CÃ©dula o PIN invÃ¡lido." },
+        { status: 400 }
+      );
+    }
+
+    const supabase = createAdminClient();
+
+    const { data: socio, error } = await supabase
+      .from("socios")
+      .select("id, nombres, apellidos, estado, pin_hash, pin_configurado, pin_intentos, pin_bloqueado_hasta, auth_user_id")
+      .eq("cedula", cedula)
+      .maybeSingle();
+
+    if (error || !socio || socio.estado !== "activo") {
+      return NextResponse.json(
+        { error: "Credenciales incorrectas." },
+        { status: 401 }
+      );
+    }
+
+    if (!socio.pin_configurado || !socio.pin_hash) {
+      return NextResponse.json(
+        { error: "Primero debes configurar tu PIN." },
+        { status: 403 }
+      );
+    }
+
+    if (
+      socio.pin_bloqueado_hasta &&
+      new Date(socio.pin_bloqueado_hasta).getTime() > Date.now()
+    ) {
+      return NextResponse.json(
+        { error: "Acceso bloqueado temporalmente. Intenta mÃ¡s tarde." },
+        { status: 429 }
+      );
+    }
+
+    const correcto = await bcrypt.compare(pin, socio.pin_hash);
+
+    if (!correcto) {
+      const intentos = (socio.pin_intentos ?? 0) + 1;
+      const bloqueado = intentos >= 5;
+
+      await supabase
+        .from("socios")
+        .update({
+          pin_intentos: bloqueado ? 0 : intentos,
+          pin_bloqueado_hasta: bloqueado
+            ? new Date(Date.now() + 15 * 60 * 1000).toISOString()
+            : null,
+        })
+        .eq("id", socio.id);
+
+      return NextResponse.json(
+        { error: "Credenciales incorrectas." },
+        { status: 401 }
+      );
+    }
+
+    if (!socio.auth_user_id) {
+      return NextResponse.json(
+        { error: "Tu cuenta todavÃ­a no estÃ¡ vinculada. Contacta al administrador." },
+        { status: 403 }
+      );
+    }
+
+    const { data: usuario, error: usuarioError } =
+      await supabase.auth.admin.getUserById(socio.auth_user_id);
+
+    if (usuarioError || !usuario.user?.email) {
+      return NextResponse.json(
+        { error: "No se encontrÃ³ la cuenta de acceso." },
+        { status: 403 }
+      );
+    }
+
+    const { data: enlace, error: enlaceError } =
+      await supabase.auth.admin.generateLink({
+        type: "magiclink",
+        email: usuario.user.email,
+      });
+
+    const tokenHash = enlace?.properties?.hashed_token;
+
+    if (enlaceError || !tokenHash) {
+      return NextResponse.json(
+        { error: "No se pudo iniciar la sesiÃ³n." },
+        { status: 500 }
+      );
+    }
+
+    await supabase
+      .from("socios")
+      .update({
+        pin_intentos: 0,
+        pin_bloqueado_hasta: null,
+      })
+      .eq("id", socio.id);
+
+    return NextResponse.json({
+      token_hash: tokenHash,
+      type: "magiclink",
+    });
+  } catch {
+    return NextResponse.json(
+      { error: "No se pudo procesar la solicitud." },
+      { status: 500 }
+    );
+  }
+}
+
+
+========== src/app/api/socios/vincular/route.ts ==========
+
+import { NextResponse } from "next/server";
+import { createAdminClient } from "@/lib/supabase-admin";
+import bcrypt from "bcryptjs";
+
+export async function POST(request: Request) {
+  try {
+    const { cedula, pin } = await request.json();
+
+    if (
+      typeof cedula !== "string" ||
+      typeof pin !== "string" ||
+      !/^\d{10}$/.test(cedula) ||
+      !/^\d{4}$/.test(pin)
+    ) {
+      return NextResponse.json(
+        { error: "CÃ©dula o PIN invÃ¡lido." },
+        { status: 400 }
+      );
+    }
+
+    const supabase = createAdminClient();
+
+    const { data: socio, error } = await supabase
+      .from("socios")
+      .select(
+        "id, estado, pin_hash, pin_configurado, pin_intentos, pin_bloqueado_hasta, auth_user_id"
+      )
+      .eq("cedula", cedula)
+      .maybeSingle();
+
+    if (error || !socio || socio.estado !== "activo") {
+      return NextResponse.json(
+        { error: "Credenciales incorrectas." },
+        { status: 401 }
+      );
+    }
+
+    if (!socio.pin_configurado || !socio.pin_hash) {
+      return NextResponse.json(
+        { error: "Primero debes configurar tu PIN." },
+        { status: 403 }
+      );
+    }
+
+    if (
+      socio.pin_bloqueado_hasta &&
+      new Date(socio.pin_bloqueado_hasta).getTime() > Date.now()
+    ) {
+      return NextResponse.json(
+        { error: "Acceso bloqueado temporalmente. Intenta mÃ¡s tarde." },
+        { status: 429 }
+      );
+    }
+
+    const correcto = await bcrypt.compare(pin, socio.pin_hash);
+
+    if (!correcto) {
+      const intentos = (socio.pin_intentos ?? 0) + 1;
+      const bloqueado = intentos >= 5;
+
+      await supabase
+        .from("socios")
+        .update({
+          pin_intentos: bloqueado ? 0 : intentos,
+          pin_bloqueado_hasta: bloqueado
+            ? new Date(Date.now() + 15 * 60 * 1000).toISOString()
+            : null,
+        })
+        .eq("id", socio.id);
+
+      return NextResponse.json(
+        { error: "Credenciales incorrectas." },
+        { status: 401 }
+      );
+    }
+
+    if (!socio.auth_user_id) {
+      return NextResponse.json(
+        {
+          error:
+            "Tu cuenta todavÃ­a no estÃ¡ vinculada. Contacta al administrador.",
+        },
+        { status: 403 }
+      );
+    }
+
+    const { data: usuario, error: usuarioError } =
+      await supabase.auth.admin.getUserById(socio.auth_user_id);
+
+    if (usuarioError || !usuario.user?.email) {
+      return NextResponse.json(
+        { error: "No se encontrÃ³ la cuenta de acceso." },
+        { status: 403 }
+      );
+    }
+
+    const { data: enlace, error: enlaceError } =
+      await supabase.auth.admin.generateLink({
+        type: "magiclink",
+        email: usuario.user.email,
+      });
+
+    const tokenHash = enlace?.properties?.hashed_token;
+
+    if (enlaceError || !tokenHash) {
+      return NextResponse.json(
+        { error: "No se pudo iniciar la sesiÃ³n." },
+        { status: 500 }
+      );
+    }
+
+    await supabase
+      .from("socios")
+      .update({
+        pin_intentos: 0,
+        pin_bloqueado_hasta: null,
+      })
+      .eq("id", socio.id);
+
+    return NextResponse.json({
+      token_hash: tokenHash,
+      type: "magiclink",
+    });
+  } catch {
+    return NextResponse.json(
+      { error: "No se pudo procesar la solicitud." },
+      { status: 500 }
+    );
+  }
+}
+
+
+========== src/app/api/admin/socios/restablecer-pin/route.ts ==========
+
+import { NextResponse } from "next/server";
+import { randomBytes, randomInt } from "crypto";
+import bcrypt from "bcryptjs";
+import { createAdminClient } from "@/lib/supabase-admin";
+
+export async function POST(request: Request) {
+  try {
+    const authorization = request.headers.get("authorization");
+    const token = [OCULTO]"");
+
+    if (!token) {
+      return NextResponse.json(
+        { error: "SesiÃ³n no autorizada." },
+        { status: 401 }
+      );
+    }
+
+    const supabase = createAdminClient();
+
+    const { data: usuario, error: authError } =
+      await supabase.auth.getUser(token);
+
+    if (authError || !usuario.user) {
+      return NextResponse.json(
+        { error: "SesiÃ³n invÃ¡lida." },
+        { status: 401 }
+      );
+    }
+
+    const { data: admin } = await supabase
+      .from("admin_fondo")
+      .select("usuario_id")
+      .eq("usuario_id", usuario.user.id)
+      .eq("activo", true)
+      .maybeSingle();
+
+    if (!admin) {
+      return NextResponse.json(
+        { error: "No tienes permisos administrativos." },
+        { status: 403 }
+      );
+    }
+
+    const { socio_id } = await request.json();
+
+    if (!Number.isInteger(socio_id) || socio_id <= 0) {
+      return NextResponse.json(
+        { error: "Socio no vÃ¡lido." },
+        { status: 400 }
+      );
+    }
+
+    const { data: socio, error: socioError } = await supabase
+      .from("socios")
+      .select("id, nombres, apellidos, estado, auth_user_id")
+      .eq("id", socio_id)
+      .maybeSingle();
+
+    if (socioError || !socio || socio.estado !== "activo") {
+      return NextResponse.json(
+        { error: "No se encontrÃ³ un socio activo." },
+        { status: 404 }
+      );
+    }
+
+    let authUserId = socio.auth_user_id;
+
+    // Crear cuenta de Supabase si todavÃ­a no existe.
+    if (!authUserId) {
+      const correoInterno =
+        `socio-${socio.id}@socios.bancodivinonino.com`;
+
+      const { data: nuevaCuenta, error: crearError } =
+        await supabase.auth.admin.createUser({
+          email: correoInterno,
+          password: [OCULTO]"hex"),
+          email_confirm: true,
+          user_metadata: {
+            tipo_cuenta: "socio",
+            socio_id: socio.id,
+          },
+        });
+
+      if (crearError || !nuevaCuenta.user) {
+        return NextResponse.json(
+          {
+            error: "No se pudo crear la cuenta de acceso.",
+            detalle: crearError?.message || "Supabase no devolviÃ³ el usuario.",
+          },
+          { status: 500 }
+        );
+      }
+
+      authUserId = nuevaCuenta.user.id;
+
+      // Vincular la cuenta al socio.
+      const { data: vinculado, error: vincularError } = await supabase
+        .from("socios")
+        .update({ auth_user_id: authUserId })
+        .eq("id", socio.id)
+        .is("auth_user_id", null)
+        .select("id, auth_user_id")
+        .maybeSingle();
+
+      if (vincularError || !vinculado) {
+        await supabase.auth.admin.deleteUser(authUserId);
+
+        return NextResponse.json(
+          {
+            error: "No se pudo vincular la cuenta al socio.",
+            detalle: vincularError?.message || "No se actualizÃ³ el registro.",
+          },
+          { status: 500 }
+        );
+      }
+    }
+
+    // Generar cÃ³digo temporal de recuperaciÃ³n.
+    const codigo = randomInt(100000, 1000000).toString();
+    const codigoHash = await bcrypt.hash(codigo, 12);
+    const expiracion = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+    // Invalidar cÃ³digos anteriores.
+    const { error: invalidarError } = await supabase
+      .from("recuperacion_pin")
+      .update({ usado: true })
+      .eq("socio_id", socio.id)
+      .eq("usado", false);
+
+    if (invalidarError) {
+      return NextResponse.json(
+        { error: "No se pudieron invalidar los cÃ³digos anteriores." },
+        { status: 500 }
+      );
+    }
+
+    const { error: insertarError } = await supabase
+      .from("recuperacion_pin")
+      .insert({
+        socio_id: socio.id,
+        codigo_hash: codigoHash,
+        expira_at: expiracion.toISOString(),
+        intentos: 0,
+        usado: false,
+      });
+
+    if (insertarError) {
+      return NextResponse.json(
+        { error: "No se pudo generar el cÃ³digo temporal." },
+        { status: 500 }
+      );
+    }
+
+    const { error: actualizarError } = await supabase
+      .from("socios")
+      .update({
+        pin_hash: null,
+        pin_configurado: false,
+        pin_intentos: 0,
+        pin_bloqueado_hasta: null,
+      })
+      .eq("id", socio.id)
+      .eq("estado", "activo");
+
+    if (actualizarError) {
+      await supabase
+        .from("recuperacion_pin")
+        .update({ usado: true })
+        .eq("socio_id", socio.id)
+        .eq("codigo_hash", codigoHash);
+
+      return NextResponse.json(
+        { error: "La cuenta se vinculÃ³, pero no se pudo restablecer el PIN." },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      correcto: true,
+      codigo,
+      socio: `${socio.nombres} ${socio.apellidos}`,
+      expira_en: "24 horas",
+    });
+  } catch (error) {
+    console.error("Error al restablecer PIN:", error);
+
+    return NextResponse.json(
+      { error: "Error interno al restablecer el PIN." },
+      { status: 500 }
+    );
+  }
+}

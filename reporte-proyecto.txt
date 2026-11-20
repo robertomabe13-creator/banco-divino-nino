@@ -1,0 +1,122 @@
+﻿===== ESTRUCTURA DEL PROYECTO =====
+\.env.local
+\.gitignore
+\eslint.config.mjs
+\next-env.d.ts
+\next.config.ts
+\package-lock.json
+\package.json
+\README.md
+\reporte-proyecto.txt
+\src.zip
+\tsconfig.json
+\public\file.svg
+\public\globe.svg
+\public\next.svg
+\public\vercel.svg
+\public\window.svg
+\src\app\favicon.ico
+\src\app\globals.css
+\src\app\layout.tsx
+\src\app\page.module.css
+\src\app\page.tsx
+\src\app\admin\page.tsx
+\src\app\admin\aportaciones\page.tsx
+\src\app\admin\calendario\page.tsx
+\src\app\admin\ciclos\page.tsx
+\src\app\admin\login\page.tsx
+\src\app\admin\movimientos\page.tsx
+\src\app\admin\pines\page.tsx
+\src\app\admin\prestamos\page.tsx
+\src\app\admin\socios\page.tsx
+\src\app\api\admin\socios\restablecer-pin\route.ts
+\src\app\api\socios\configurar-pin\route.ts
+\src\app\api\socios\solicitar-codigo\route.ts
+\src\app\api\socios\validar-pin\route.ts
+\src\app\api\socios\vincular\route.ts
+\src\app\socios\page.tsx
+\src\app\socios\configurar-pin\page.tsx
+\src\app\socios\login\page.tsx
+\src\app\socios\vincular\page.tsx
+\src\lib\supabase-admin.ts
+\src\lib\supabase.ts
+===== CONTENIDO DE ARCHIVOS IMPORTANTES =====
+
+===== package.json =====
+{
+  "name": "banco-divino-nino",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "@supabase/ssr": "^0.12.7",
+    "@supabase/supabase-js": "^2.119.0",
+    "bcryptjs": "^3.0.3",
+    "lucide-react": "^1.73.0",
+    "next": "16.4.6",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "server-only": "^0.0.1",
+    "twilio": "^6.3.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/turbopack": "4.3.3",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.4.6",
+    "tailwindcss": "4.3.3",
+    "typescript": "^5"
+  }
+}
+
+===== next.config.ts =====
+import type { NextConfig } from "next";
+
+const nextConfig: NextConfig = {
+  /* config options here */
+  cacheComponents: true,
+  partialPrefetching: true,
+  turbopack: {
+    rules: {
+      "*.css": {
+        loaders: ["@tailwindcss/turbopack"],
+        as: "*.css",
+      },
+    },
+  },
+};
+
+export default nextConfig;
+
+===== src/lib/supabase.ts =====
+
+import { createBrowserClient } from "@supabase/ssr";
+
+let supabaseInstance: ReturnType<typeof createBrowserClient> | null = null;
+
+export function createClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error(
+      "Faltan las variables NEXT_PUBLIC_SUPABASE_URL o NEXT_PUBLIC_SUPABASE_ANON_KEY."
+    );
+  }
+
+  if (!supabaseInstance) {
+    supabaseInstance = createBrowserClient(
+      supabaseUrl,
+      supabaseAnonKey
+    );
+  }
+
+  return supabaseInstance;
+}
